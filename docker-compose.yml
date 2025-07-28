@@ -1,0 +1,20 @@
+version: '3.9'
+
+services:
+  rabbitmq:
+    image: rabbitmq:3-management  # Usa imagem com o plugin de gerenciamento já incluído
+    container_name: rabbitmq
+    restart: always
+    ports:
+      - 5672:5672     # Porta para conexões com aplicações (ex: pika)
+      - 15672:15672   # Interface web de administração
+    environment:
+      RABBITMQ_DEFAULT_USER: Nicole
+      RABBITMQ_DEFAULT_PASS: nicole123
+    volumes:
+      - rabbitmq-lib:/var/lib/rabbitmq/
+      - rabbitmq-log:/var/log/rabbitmq/
+
+volumes:
+  rabbitmq-lib:
+  rabbitmq-log:
