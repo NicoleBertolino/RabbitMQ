@@ -1,0 +1,18 @@
+{
+  "sync_id": "sync_1",
+
+  "rabbitmq": {
+    "host": "rabbitmq",
+    "port": 5672,
+    "username": "Nicole",
+    "password": "nicole123",
+    "queue": "r_queue",
+    "exchange": "",
+    "routing_key": "r_queue"
+  },
+
+  "critical_section": {
+    "min_sleep": 0.2,
+    "max_sleep": 1.0
+  }
+}

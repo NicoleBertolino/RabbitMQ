@@ -1,0 +1,17 @@
+{
+  "client_id": "client_1",
+  "cluster_sync_host": "sync_1",
+  "access_count": 30,
+  "sleep_min": 1,
+  "sleep_max": 5,
+
+  "rabbitmq": {
+    "host": "rabbitmq",
+    "port": 5672,
+    "username": "Nicole",
+    "password": "nicole123",
+    "exchange": "",
+    "queue": "r_queue",
+    "routing_key": "r_queue"
+  }
+}

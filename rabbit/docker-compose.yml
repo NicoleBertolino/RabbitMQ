@@ -1,20 +1,44 @@
-version: '3.9'
-
 services:
   rabbitmq:
-    image: rabbitmq:3-management  # Usa imagem com o plugin de gerenciamento já incluído
+    image: rabbitmq:3-management
     container_name: rabbitmq
-    restart: always
     ports:
-      - 5672:5672     # Porta para conexões com aplicações (ex: pika)
-      - 15672:15672   # Interface web de administração
+      - 5672:5672
+      - 15672:15672
     environment:
       RABBITMQ_DEFAULT_USER: Nicole
       RABBITMQ_DEFAULT_PASS: nicole123
+    healthcheck:
+      test: ["CMD", "rabbitmq-diagnostics", "status"]
+      interval: 30s
+      timeout: 10s
+      retries: 5
     volumes:
-      - rabbitmq-lib:/var/lib/rabbitmq/
-      - rabbitmq-log:/var/log/rabbitmq/
+      - rabbitmq_data:/var/lib/rabbitmq
+    networks:
+      - cluster_net
+
+  client_1:
+    image: client_1
+    container_name: client_1
+    build:
+      context: ./
+      dockerfile: ../client/Dockerfile
+    depends_on:
+      rabbitmq:
+        condition: service_healthy
+    environment:
+      RABBITMQ_HOST: rabbitmq
+      RABBITMQ_USER: Nicole
+      RABBITMQ_PASS: nicole123
+    networks:
+      - cluster_net
+
+networks:
+  cluster_net:
+    name: cluster_net
+    driver: bridge
 
 volumes:
-  rabbitmq-lib:
-  rabbitmq-log:
+  rabbitmq_data:
+    driver: local
