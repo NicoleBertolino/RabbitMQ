@@ -22,7 +22,7 @@ class RabbitMQClient:
         self.SLEEP_MIN = config["sleep_min"]
         self.SLEEP_MAX = config["sleep_max"]
         self.RABBITMQ_CONF = config["rabbitmq"]
-        self.RESPONSE_TIMEOUT = 30  # segundos
+        self.RESPONSE_TIMEOUT = 60  # segundos
 
     def setup_connection(self):
         credentials = pika.PlainCredentials(
