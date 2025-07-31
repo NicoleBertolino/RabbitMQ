@@ -6,90 +6,157 @@ import time
 import os
 from datetime import datetime
 
-# Carregar configuração
-CONFIG_FILE = os.getenv("CONFIG_FILE", "../config/client_config.json")
-with open(CONFIG_FILE, "r") as f:
-    config = json.load(f)
+class RabbitMQClient:
+    def __init__(self):
+        self.load_config()
+        self.setup_connection()
+        self.setup_queues()
+        
+    def load_config(self):
+        CONFIG_FILE = os.getenv("CONFIG_FILE", "../config/client_config.json")
+        with open(CONFIG_FILE, "r") as f:
+            config = json.load(f)
+        
+        self.CLIENT_ID = config["client_id"]
+        self.ACCESS_COUNT = config["access_count"]
+        self.SLEEP_MIN = config["sleep_min"]
+        self.SLEEP_MAX = config["sleep_max"]
+        self.RABBITMQ_CONF = config["rabbitmq"]
+        self.RESPONSE_TIMEOUT = 30  # segundos
 
-CLIENT_ID = config["client_id"]
-CLUSTER_SYNC = config["cluster_sync_host"]
-ACCESS_COUNT = config["access_count"]
-SLEEP_MIN = config["sleep_min"]
-SLEEP_MAX = config["sleep_max"]
+    def setup_connection(self):
+        credentials = pika.PlainCredentials(
+            self.RABBITMQ_CONF["username"], 
+            self.RABBITMQ_CONF["password"]
+        )
+        
+        self.connection = pika.BlockingConnection(
+            pika.ConnectionParameters(
+                host=self.RABBITMQ_CONF["host"],
+                port=self.RABBITMQ_CONF["port"],
+                credentials=credentials,
+                heartbeat=600,
+                blocked_connection_timeout=300,
+                connection_attempts=5,
+                retry_delay=3
+            )
+        )
+        self.channel = self.connection.channel()
 
-RABBITMQ_CONF = config["rabbitmq"]
+    def setup_queues(self):
+        """Configura as filas de forma segura, sem modificar existentes"""
+        try:
+            # Verifica se a fila principal existe sem modificar
+            self.channel.queue_declare(
+                queue=self.RABBITMQ_CONF["queue"],
+                durable=True,
+                passive=True
+            )
+        except pika.exceptions.ChannelClosedByBroker as e:
+            if e.reply_code == 404:  # Se a fila não existir
+                self.channel.queue_declare(
+                    queue=self.RABBITMQ_CONF["queue"],
+                    durable=True,
+                    arguments={
+                        'x-message-ttl': 60000,
+                        'x-dead-letter-exchange': ''
+                    }
+                )
+            else:
+                raise
+        
+        # Fila de respostas (exclusiva para este cliente)
+        self.reply_queue = self.channel.queue_declare(
+            queue='',
+            exclusive=True,
+            auto_delete=True
+        )
+        self.reply_queue_name = self.reply_queue.method.queue
+        
+        self.channel.basic_consume(
+            queue=self.reply_queue_name,
+            on_message_callback=self.on_response,
+            auto_ack=True
+        )
 
-# Estabelece conexão com RabbitMQ
-credentials = pika.PlainCredentials(
-    RABBITMQ_CONF["username"], RABBITMQ_CONF["password"]
-)
-parameters = pika.ConnectionParameters(
-    host=RABBITMQ_CONF["host"],
-    port=RABBITMQ_CONF["port"],
-    credentials=credentials,
-    heartbeat=600,
-    blocked_connection_timeout=300,
-)
-connection = pika.BlockingConnection(parameters)
-channel = connection.channel()
+    def on_response(self, ch, method, props, body):
+        """Callback para processar respostas COMMITTED"""
+        if hasattr(self, 'current_correlation_id') and props.correlation_id == self.current_correlation_id:
+            try:
+                response = json.loads(body)
+                if response.get("status") == "COMMITTED":
+                    print(f"[{self.CLIENT_ID}] COMMITTED recebido para {props.correlation_id}")
+                    self.response_received = True
+            except json.JSONDecodeError:
+                print(f"[{self.CLIENT_ID}] Resposta inválida")
 
-# Garante que a fila exista (caso o Cluster ainda não tenha criado)
-channel.queue_declare(queue=RABBITMQ_CONF["queue"], durable=True)
+    def send_request(self, attempt):
+        """Envia um pedido ACQUIRE para a fila"""
+        request_id = str(uuid.uuid4())
+        timestamp = datetime.utcnow().isoformat()
+        message = {
+            "client_id": self.CLIENT_ID,
+            "timestamp": timestamp,
+            "request_id": request_id,
+            "primitiva": "ACQUIRE"
+        }
 
-# Cria uma fila exclusiva para receber COMMITTED (respostas)
-reply_queue = channel.queue_declare(queue='', exclusive=True)
-reply_queue_name = reply_queue.method.queue
+        self.current_correlation_id = str(uuid.uuid4())
+        self.response_received = False
 
-# Callback que trata respostas COMMITTED
-response_received = False
-def on_response(ch, method, props, body):
-    global response_received
-    if props.correlation_id == current_correlation_id:
-        print(f"[{CLIENT_ID}] COMMITTED recebido: {body.decode()}")
-        response_received = True
+        try:
+            self.channel.basic_publish(
+                exchange=self.RABBITMQ_CONF.get("exchange", ""),
+                routing_key=self.RABBITMQ_CONF["queue"],
+                properties=pika.BasicProperties(
+                    reply_to=self.reply_queue_name,
+                    correlation_id=self.current_correlation_id,
+                    content_type='application/json',
+                    delivery_mode=2,  # Persistente
+                ),
+                body=json.dumps(message)
+            )
+            print(f"[{self.CLIENT_ID}] Pedido {attempt} enviado: {request_id}")
+            return True
+        except pika.exceptions.AMQPError as e:
+            print(f"[{self.CLIENT_ID}] Falha ao enviar pedido {attempt}: {str(e)}")
+            return False
 
-channel.basic_consume(
-    queue=reply_queue_name,
-    on_message_callback=on_response,
-    auto_ack=True
-)
+    def wait_for_response(self):
+        """Aguarda a resposta COMMITTED com timeout"""
+        start_time = time.time()
+        while not self.response_received:
+            if time.time() - start_time > self.RESPONSE_TIMEOUT:
+                print(f"[{self.CLIENT_ID}] Timeout esperando resposta")
+                return False
+            self.connection.process_data_events()
+            time.sleep(0.1)
+        return True
 
-# Envia pedidos de acesso
-for i in range(ACCESS_COUNT):
-    request_id = str(uuid.uuid4())
-    timestamp = datetime.utcnow().isoformat()
-    message = {
-        "client_id": CLIENT_ID,
-        "timestamp": timestamp,
-        "request_id": request_id,
-        "primitiva": "ACQUIRE"
-    }
+    def run(self):
+        """Executa o loop principal do cliente"""
+        try:
+            for i in range(1, self.ACCESS_COUNT + 1):
+                if not self.send_request(i):
+                    time.sleep(3)  # Espera antes de tentar novamente
+                    continue
+                    
+                if not self.wait_for_response():
+                    continue
+                    
+                wait_time = random.randint(self.SLEEP_MIN, self.SLEEP_MAX)
+                print(f"[{self.CLIENT_ID}] Dormindo por {wait_time}s\n")
+                time.sleep(wait_time)
 
-    current_correlation_id = str(uuid.uuid4())
+            print(f"[{self.CLIENT_ID}] Finalizou os {self.ACCESS_COUNT} pedidos.")
+        finally:
+            self.connection.close()
 
-    # Publica pedido para a fila
-    channel.basic_publish(
-        exchange=RABBITMQ_CONF["exchange"],
-        routing_key=RABBITMQ_CONF["queue"],
-        properties=pika.BasicProperties(
-            reply_to=reply_queue_name,
-            correlation_id=current_correlation_id,
-            content_type='application/json'
-        ),
-        body=json.dumps(message)
-    )
-
-    print(f"[{CLIENT_ID}] Pedido {i+1}/{ACCESS_COUNT} enviado: {message['timestamp']}")
-
-    # Aguarda resposta COMMITTED
-    response_received = False
-    while not response_received:
-        connection.process_data_events(time_limit=1)
-
-    # Dorme entre 1 e 5 segundos
-    wait_time = random.randint(SLEEP_MIN, SLEEP_MAX)
-    print(f"[{CLIENT_ID}] Dormindo por {wait_time}s\n")
-    time.sleep(wait_time)
-
-print(f"[{CLIENT_ID}] Finalizou os {ACCESS_COUNT} pedidos.")
-connection.close()
+if __name__ == "__main__":
+    try:
+        client = RabbitMQClient()
+        client.run()
+    except KeyboardInterrupt:
+        print("\nClient encerrado pelo usuário")
+    except Exception as e:
+        print(f"Erro inesperado: {str(e)}")

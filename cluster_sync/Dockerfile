@@ -1,22 +1,26 @@
-# Usa uma imagem leve com Python 3.11
-FROM python:3.11-slim
+FROM python:3.10-slim
 
-# Define o diretório de trabalho dentro do container
+# Configurações essenciais
+ENV PYTHONDONTWRITEBYTECODE 1
+ENV PYTHONUNBUFFERED 1
+
+# Instala dependências do sistema para pika
+RUN apt-get update && \
+    apt-get install -y --no-install-recommends gcc python3-dev && \
+    rm -rf /var/lib/apt/lists/*
+
 WORKDIR /app
 
-# Copia as pastas de código e configuração para dentro da imagem
-COPY config/ config/
-COPY src/ src/
-COPY utils/ utils/
+# Copia requirements do contexto raiz
+COPY ./cluster_sync/requirements.txt .
 
-# Copia o arquivo de dependências
-COPY requirements.txt .
+# Instala dependências
+RUN pip install --no-cache-dir -r requirements.txt pika
 
-# Instala as dependências necessárias
-RUN pip install --no-cache-dir -r requirements.txt
+# Copia o código fonte
+COPY ./cluster_sync/src ./src
+COPY ./cluster_sync/config ./config
 
-# Define uma variável de ambiente para o arquivo de configuração
-ENV CONFIG_FILE=config/cluster_config.json
+WORKDIR /app/src
 
-# Comando padrão para executar o processo do Cluster Sync
-CMD ["python", "src/cluster_sync.py"]
+CMD ["python", "cluster_sync.py"]

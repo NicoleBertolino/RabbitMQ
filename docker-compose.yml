@@ -22,8 +22,24 @@ services:
     image: client_1
     container_name: client_1
     build:
-      context: ./
-      dockerfile: ../client/Dockerfile
+      context: .
+      dockerfile: ./client/Dockerfile
+    depends_on:
+      rabbitmq:
+        condition: service_healthy
+    environment:
+      RABBITMQ_HOST: rabbitmq
+      RABBITMQ_USER: Nicole
+      RABBITMQ_PASS: nicole123
+    networks:
+      - cluster_net
+
+  cluster_sync:
+    image: cluster_sync
+    container_name: cluster_sync
+    build:
+      context: .
+      dockerfile: ./cluster_sync/Dockerfile
     depends_on:
       rabbitmq:
         condition: service_healthy
