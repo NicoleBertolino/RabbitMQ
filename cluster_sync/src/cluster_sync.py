@@ -127,19 +127,36 @@ class ClusterSync:
             ch.basic_nack(delivery_tag=method.delivery_tag)
 
     def process_request(self, request):
-        try:
-            if self.can_enter_critical_section(request):
-                self.enter_critical_section(request)
-        except Exception as e:
-            print(f"[{self.SYNC_ID}] Erro no processamento: {str(e)}")
+        attempts = 0
+        max_attempts = 10
+        while attempts < max_attempts:
+            try:
+                if self.can_enter_critical_section(request):
+                    self.enter_critical_section(request)
+                    return
+                else:
+                    print(f"[{self.SYNC_ID}] Não pode entrar na seção crítica, aguardando...")
+                    time.sleep(0.5)
+                attempts += 1
+            except Exception as e:
+                print(f"[{self.SYNC_ID}] Erro no processamento: {str(e)}")
+        
+        print(f"[{self.SYNC_ID}] Máximo de tentativas atingido para {request['request_id']}, descartando solicitação.")
 
     def can_enter_critical_section(self, request):
-        for acq in self.state['acquire_list']:
-            if acq["request_id"] == request["request_id"]:
+        # Verifica se o request_id já está na release_list, ou seja, já foi processado
+        if request["request_id"] in self.state['release_list']:
+            return False
+        
+        for existing_request in self.state['acquire_list']:
+            # Verifica se o request_id já está na release_list, passando pro próximo da fila
+            if existing_request["request_id"] in self.state['release_list']:
+                continue
+            # Se o próximo request_id da fila não está na release_list, verifica se é o mesmo que está tentando entrar
+            elif existing_request["request_id"] == request["request_id"]:
                 return True
-            if acq["request_id"] not in self.state['release_list']:
+            else:
                 return False
-        return True
 
     def enter_critical_section(self, request):
         try:
