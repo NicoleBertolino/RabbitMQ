@@ -13,7 +13,7 @@ class RabbitMQClient:
         self.setup_queues()
         
     def load_config(self):
-        CONFIG_FILE = os.getenv("CONFIG_FILE", "../config/client_config.json")
+        CONFIG_FILE = os.getenv("CONFIG_FILE", "../config_client_2/client_config_2.json")
         with open(CONFIG_FILE, "r") as f:
             config = json.load(f)
         

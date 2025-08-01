@@ -12,6 +12,6 @@ docker compose build --no-cache --progress plain
 docker compose up -d
 
 # 4. Comando para rodar custer_sync
-
+docker logs -f cluster_sync
 # 5. Comando para rodar client
 docker logs -f client_1 

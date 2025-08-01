@@ -50,28 +50,9 @@ services:
       RABBITMQ_HOST: rabbitmq
       RABBITMQ_USER: Nicole
       RABBITMQ_PASS: nicole123
-      CONFIG_FILE: /app/config/client_config_2.json
-    volumes:  
-      - ./client/config/client_config_2.json:/app/config/client_config_2.json
-    networks:
-      - cluster_net
-
-  client_3:
-    image: client_3
-    container_name: client_3
-    build:
-      context: .
-      dockerfile: ./client/Dockerfile
-    depends_on:
-      rabbitmq:
-        condition: service_healthy
-    environment:
-      RABBITMQ_HOST: rabbitmq
-      RABBITMQ_USER: Nicole
-      RABBITMQ_PASS: nicole123
-      CONFIG_FILE: /app/config/client_config_3.json
-    volumes:  
-      - ./client/config/client_config_3.json:/app/config/client_config_3.json
+      CONFIG_FILE: /app/config_client_2/client_config_2.json
+    volumes:
+      - ./client_2/config_client_2/client_config_2.json:/app/config_client_2/client_config_2.json
     networks:
       - cluster_net
 
