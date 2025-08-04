@@ -42,7 +42,7 @@ services:
     container_name: client_2
     build:
       context: .
-      dockerfile: ./client/Dockerfile
+      dockerfile: ./client_2/Dockerfile
     depends_on:
       rabbitmq:
         condition: service_healthy
@@ -55,6 +55,64 @@ services:
       - ./client_2/config_client_2/client_config_2.json:/app/config_client_2/client_config_2.json
     networks:
       - cluster_net
+
+  client_3:
+    image: client_3
+    container_name: client_3
+    build:
+      context: .
+      dockerfile: ./client_3/Dockerfile
+    depends_on:
+      rabbitmq:
+        condition: service_healthy
+    environment:
+      RABBITMQ_HOST: rabbitmq
+      RABBITMQ_USER: Nicole
+      RABBITMQ_PASS: nicole123
+      CONFIG_FILE: /app/config_client_3/client_config_3.json
+    volumes:
+      - ./client_3/config_client_3/client_config_3.json:/app/config_client_3/client_config_3.json
+    networks:
+      - cluster_net
+
+  client_4:
+    image: client_4
+    container_name: client_4
+    build:
+      context: .
+      dockerfile: ./client_4/Dockerfile
+    depends_on:
+      rabbitmq:
+        condition: service_healthy
+    environment:
+      RABBITMQ_HOST: rabbitmq
+      RABBITMQ_USER: Nicole
+      RABBITMQ_PASS: nicole123
+      CONFIG_FILE: /app/config_client_4/client_config_4.json
+    volumes:
+      - ./client_4/config_client_4/client_config_4.json:/app/config_client_4/client_config_4.json
+    networks:
+      - cluster_net
+
+  client_5:
+    image: client_5
+    container_name: client_5
+    build:
+      context: .
+      dockerfile: ./client_5/Dockerfile
+    depends_on:
+      rabbitmq:
+        condition: service_healthy
+    environment:
+      RABBITMQ_HOST: rabbitmq
+      RABBITMQ_USER: Nicole
+      RABBITMQ_PASS: nicole123
+      CONFIG_FILE: /app/config_client_5/client_config_5.json
+    volumes:
+      - ./client_5/config_client_5/client_config_5.json:/app/config_client_5/client_config_5.json
+    networks:
+      - cluster_net
+
 
   cluster_sync:
     image: cluster_sync

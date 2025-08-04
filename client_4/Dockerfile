@@ -18,9 +18,9 @@ COPY ./client/requirements.txt .
 RUN pip install --no-cache-dir -r requirements.txt pika
 
 # Copia o código fonte
-COPY ./client_2/src ./src
-COPY ./client_2/config_client_2 ./config_client_2
+COPY ./client_4/src ./src
+COPY ./client_4/config_client_4 ./config_client_4
 
 WORKDIR /app/src
 
-CMD ["python", "client_2.py"]
+CMD ["python", "client_4.py"]

@@ -1,0 +1,14 @@
+{
+  "client_id": "client_3",
+  "access_count": 5,
+  "sleep_min": 1,
+  "sleep_max": 5,
+  "rabbitmq": {
+    "host": "rabbitmq",
+    "port": 5672,
+    "username": "Nicole",
+    "password": "nicole123",
+    "queue": "r_queue",
+    "exchange": ""
+  }
+}
